@@ -1,0 +1,283 @@
+## General overview and syntax
+
+The app supports the following integration methods:
+
+- Command line integration
+- Custom URL scheme based integration
+- HTTP integration
+- Notification based integration - for more details on this, see: https://betterdisplay.pro/integration
+- macOS Shortcuts (App Intents)
+
+The various integration methods can be separately enabled and disabled under Settings in the application UI.
+
+An integration command might receive one or more operations and zero or more parameters. A parameter might or might not have a value associated with it.
+
+### Syntax for command line access:
+
+`./BetterDisplay operation [operation] [-parameter[=value]] [-parameter[=value]]`
+
+Notes:
+
+- The app binary `BetterDisplay` is available in the installed macOS app bundle (the full path when installed under `Applications` is `/Applications/BetterDisplay.app/Contents/MacOS/BetterDisplay`).
+- You can use both single and double hyphen parameter style.
+
+You can also use `betterdisplaycli` for simpler access. Installation via Homebrew:
+
+`brew install waydabber/betterdisplay/betterdisplaycli`
+
+Examples (both commands set the brightness of a display with the name `MyDisplay` to 80%):
+
+`./BetterDisplay set -name=MyDisplay -brightness=0.8`
+
+`betterdisplaycli set --name=MyDisplay --brightness=80%`
+
+### Syntax for custom URL scheme integration:
+
+`BetterDisplay://operation/[operation/ (…)][?parameter[=value]][&parameter[=value]]`
+
+Example (raw URL and scripted access using `open` command with proper escaping):
+
+`BetterDisplay://set?name=MyDisplay&brightness=0.8`
+
+`open BetterDisplay://set\?name=MyDisplay\&brightness=0.8`
+
+To safeguard access, a special token can optionally be defined in Settings which must then be present in the URL via a `token=` parameter. The custom URL scheme integration supports x-callback-url to report back success or error and results. More information: https://x-callback-url.com/specification/
+
+### Syntax for HTTP based integration:
+
+`http://<hostname>:55777/command/[command/][?parameter[=value]][&parameter[=value]]`
+
+Example (raw URL and scripted access using `curl` command with proper escaping):
+
+`http://localhost:55777/set?name=MyDisplay&brightness=0.8`
+
+`curl http://localhost:55777/set\?name=MyDisplay\&brightness=0.8`
+
+The listening port can be customized under Settings. Example uses local access via `localhost` - use the appropriate hostname with remote calls. To safeguard access, a special token can optionally be defined in Settings which must then be present in the URL via a `token=` parameter.
+
+With URLs you can use `%20` to substitute for space.
+
+## Operations
+
+Operations define how a command will be interpreted. Some operations can be combined (for example `set` or `toggle` with `get` to both set and get a value.
+
+- `perform` - Perform a command. Used for features that do not expect any value.
+- `set` - Sets a value. Can be used for features that excpect a value to set.
+- `get` - Gets a value. Useful for features that can report some kind of value (and optionally minimum and maximum values for features where a range makes sense).
+- `toggle` - Toggle a bool value. Can be used for on/off (togglable) features.
+- `feed` - Updates the value of a custom control without performing a set operation. Can be used to feed/synchronize data to the custom control from an external source.
+- `create` - Create a device. You need to specify `deviceType=VirtualScreen`. You can add other `set` operation parameters to configure the virtual screen or alter its identifiers from default. If an identifier is not provided, the app will provide a default or (if it makes sense) random value.
+- `discard` - Discard a device. Use various device identifiers using identification parameters to narrow the devices you want to discard. Warning: without identifiers, the app will discard all discardable devices without question and any ability to undo - be careful with this!
+- `help` - Provides help about general usage or a specified operation, feature or parameter.
+
+## Parameters
+
+Parameters affect how an operation is carried out. Some parameters can be mixed with each other. Parameters may or may not have values. Some parameters require additional parameters to function.
+
+### Device identification and device listing
+
+- `tagID` - Identify a device via the display's tagID which is a BetterDisplay provided unique numeric ID specific to this app installation.
+- `UUID` - Identify a device via the display's UUID assigned by this macOS installation.
+- `displayID` - Identify a device using the displayID issued by macOS. This ID might change from time-to-time.
+- `name` - Identify a device using its displayed name in BetterDisplay.
+- `nameLike` (or `n`) - Identify a device using a part of its displayed name in BetterDisplay (case insensitive).
+- `originalName` - Identify a device using its name in BetterDisplay.
+- `originalNameLike` - Identify a device using a part of its name in BetterDisplay (case insensitive).
+- `productName` - Identify a device using its product name (as recorded in the display EDID).
+- `productNameLike` - Identify a device using a part of its name (as recorded in the display EDID, case insensitive).
+- `vendor` - Identify a device using its vendor code (numeric value).
+- `model` - Identify a device using its model number.
+- `serial` - Identify a device using its serial number.
+- `alphanumericSerial` - Identify a device using its alphanumerical serial identifier.
+- `yearOfManufacture` - Identify a device using the year of manufacture.
+- `weekOfManufacture` - Identify a device using the week of manufacture.
+- `registryLocation` - Identify a device using its I/O registry location string.
+- `deviceType` - Identify a device based on its type. Can be `Display` or `VirtualScreen`.
+- `displayWithMouse` - Identify the display with mouse.
+- `displayWithFocus` - Identify the display with the focused window.
+- `displayWithMainStatus` - Identify the display set as main.
+- `displayWithNonMainStatus` - Identify display(s) set as non-main.
+
+### Setting or getting values
+
+- `value` - Provides value when required for a feature or operation. Depending on the feature, the value may be an integer number, real number, percentage, `on` or `off` (for togglable features) or string. For most parameters you can use a more direct `-<feature_name>=[value]` syntax instead). When used with the `get` operation, provide this if you explicitly want the current value returned alongside minimum `min` or maximum `max` values.
+- `offset` - Signifies that any of the specified values are offset values (positive or negative) for features where it makes sense (these usually expect some real number or percentage as value). For example, providing `-10%` as value for a parameter will decrease the value of a feature (let's say `brightness`) by 10%.
+- `min` - If added without a value, the `get` operation will return the minimum value if it makes sense for the accessed feature. If added with a value for a set or get operation, it acts as a normalizaton tool to specify the lower bound of the value range on which the provided value must be interpreted or the requested value to be returned.
+- `max` - If added without a value, the `get` operation will return the maximum value if it makes sense for the accessed feature. If added with a value for a set or get operation, it acts as a normalizaton tool to specify the upper bound of the value range on which the provided value must be interpreted or the requested value to be returned.
+
+### Parameters invoking an app feature
+
+- `brightness` - Brightness. Selects the most appropriate brightness control method if more than one is available. A contiguous range of values are accepted. Device (display) specific feature.
+- `combinedBrightness` - Combined brightness (hardware + software). Should only be used if auto-selection using `brightness` is not adequate. A contiguous range of values are accepted. Device (display) specific feature.
+- `hardwareBrightness` - Hardware brightness (DDC or Apple). Should only be used if auto-selection using `brightness` is not adequate. A contiguous range of values are accepted. Device (display) specific feature.
+- `softwareBrightness` - Software brightness/dimming. Should only be used if auto-selection using `brightness` is not adequate. A contiguous range of values are accepted. Device (display) specific feature.
+- `volume` - Volume. Affects only devices with hardware volume control (DDC volume). A contiguous range of values are accepted. Device (display) specific feature.
+- `hardwareContrast` - Hardware contrast. Works on displays with DDC contrast control. A contiguous range of values are accepted. Device (display) specific feature.
+- `redHardwareBlackLevel` - Hardware black level for RGB red component. Works on displays with proper DDC control. A contiguous range of values are accepted. Device (display) specific feature.
+- `greenHardwareBlackLevel` - Hardware black level for RGB green component. Works on displays with proper DDC control. A contiguous range of values are accepted. Device (display) specific feature.
+- `blueHardwareBlackLevel` - Hardware black level for RGB blue component. Works on displays with proper DDC control. A contiguous range of values are accepted. Device (display) specific feature.
+- `redHardwareGain` - Hardware video gain for RGB red component. Works on displays with proper DDC control. A contiguous range of values are accepted. Device (display) specific feature.
+- `greenHardwareGain` - Hardware video gain for RGB green component. Works on displays with proper DDC control. A contiguous range of values are accepted. Device (display) specific feature.
+- `blueHardwareGain` - Hardware video gain for RGB blue component. Works on displays with proper DDC control. A contiguous range of values are accepted. Device (display) specific feature.
+- `gain` - Software video gain. Works on displays with color table manipulation support. Pro feature. A contiguous range of values are accepted. Device (display) specific feature.
+- `gamma` - Software gamma. Works on displays with color table manipulation support. Pro feature. A contiguous range of values are accepted. Device (display) specific feature.
+- `rGamma` - Software gamma for RGB red component. Works on displays with color table manipulation support. Pro feature. A contiguous range of values are accepted. Device (display) specific feature.
+- `gGamma` - Software gamma for RGB green component. Works on displays with color table manipulation support. Pro feature. A contiguous range of values are accepted. Device (display) specific feature.
+- `bGamma` - Software gamma for RGB blue component. Works on displays with color table manipulation support. Pro feature. A contiguous range of values are accepted. Device (display) specific feature.
+- `rGain` - Software gain for RGB red component. Works on displays with color table manipulation support. Pro feature. A contiguous range of values are accepted. Device (display) specific feature.
+- `gGain` - Software gain for RGB green component. Works on displays with color table manipulation support. Pro feature. A contiguous range of values are accepted. Device (display) specific feature.
+- `bGain` - Software gain for RGB blue component. Works on displays with color table manipulation support. Pro feature. A contiguous range of values are accepted. Device (display) specific feature.
+- `temperature` - Software color temperature. Works on displays with color table manipulation support. Pro feature. A contiguous range of values are accepted. Device (display) specific feature.
+- `quantization` - Software color quantization. Works on displays with color table manipulation support. Pro feature. A contiguous range of values are accepted. Device (display) specific feature.
+- `contrast` - Software contrast. Works on displays with color table manipulation support. A contiguous range of values are accepted. Device (display) specific feature.
+- `underscan` - Underscan. Works on displays with backling framebuffers that have underscan control support. A contiguous range of values are accepted. Device (display) specific feature.
+- `ddc` - Sends a direct DDC command to the display. Requires a natively connected display with DDC enabled. Specify `set` and `get` for DDC write and read. Use the `vcp` parameter to specify the DDC control code. Use `value` to provide value for a `set` operation. Specific values must be provided. Device (display) specific feature.
+- `ddcAlt` - Sends a direct DDC command to the display using an alternate addressing (mostly used by some LG displays to control input source). Requires a natively connected display with DDC enabled. Use the `vcp` parameter to specify the DDC control code. Use `value` to provide value for a `set` or `feed` operation. Specific values must be provided. Device (display) specific feature.
+- `control` - Invokes a custom (or predefined) control by its CLI designation. Use the `specifier` parameter to specify the (custom) control name. Use `value` to provide value (if relevant) for a `set` operation. A contiguous range of values are accepted. Bool value (`on` or `off`) is accepted. No value must be specified. Device (display) specific feature.
+- `virtualScreenName` - Defines the name of the virtual screen Virtual screen management feature.
+- `virtualScreenSerial` - Defines the serial number of the virtual screen Virtual screen management feature.
+- `virtualScreenVendorNumber` - Defines the vendor number of the virtual screen Virtual screen management feature.
+- `virtualScreenModelNumber` - Defines the model number of the virtual screen Virtual screen management feature.
+- `aspectWidth` - Aspect width of the virtual screen. Virtual screen management feature. A contiguous range of values are accepted.
+- `aspectHeight` - Aspect height of the virtual screen. Virtual screen management feature. A contiguous range of values are accepted.
+- `sizeInch` - Diameter of the virtual screen in inch. Virtual screen management feature. A contiguous range of values are accepted.
+- `multiplierStep` - Multiplier step of the generated resolutions (multiples of aspect width and height). Virtual screen management feature. A contiguous range of values are accepted.
+- `limitMultiplierSize` - Enable/disable multiplier limits. Virtual screen management feature. A contiguous range of values are accepted.
+- `multiplierMinWidth` - Multiplier limit - height width. Virtual screen management feature. A contiguous range of values are accepted.
+- `multiplierMinHeight` - Multiplier limit - height minimum. Virtual screen management feature. A contiguous range of values are accepted.
+- `multiplierMaxWidth` - Multiplier limit - width maximum. Virtual screen management feature. A contiguous range of values are accepted.
+- `multiplierMaxHeight` - Multiplier limit - height maximum. Virtual screen management feature. A contiguous range of values are accepted.
+- `flipped` - Virtual screen flipping. Virtual screen management feature. Bool value (`on` or `off`) is accepted.
+- `virtualScreenHiDPI` - Enable HiDPI resolutions in the resolution list of a virtual screen. Virtual screen management feature. Bool value (`on` or `off`) is accepted.
+- `useResolutionList` - Use custom resolution list instead of generated resolutions based on the aspect ratio and multiplier. Virtual screen management feature. Bool value (`on` or `off`) is accepted.
+- `resolutionList` - Resolution list in `WIDTHxHEIGHT,[WIDTHxHEIGHT[,…]]` format. Virtual screen management feature.
+- `rotation` - Display rotation. Valid values are `0`, `90`, `180`, `270`. Works on display framebuffers with rotation support. Pro feature. Specific values must be provided. Device (display) specific feature.
+- `favoriteMode` - Set display mode to the one recorded in the specified favorite slot. Valid values are `1` to `5`. Pro feature. Specific values must be provided. Device (display) specific feature.
+- `saveFavoriteMode` - Records current display mode to a specified favorite slot. Valid values are `1` to `5`. Pro feature. Specific values must be provided. Device (display) specific feature.
+- `colorProfileURL` - Color profile setting for a display. Specific values must be provided. Device (display) specific feature.
+- `xdrPreset` - Apple Display Preset setting for a display. Specific values must be provided. Device (display) specific feature.
+- `displayModeNumber` - Display mode number. Specific values must be provided. Device (display) specific feature.
+- `connectionMode` - Low level connection mode. For valid mode numbers to specify with `set`, use `connectionModeList`.  Modeswitch happens only if there is a suitable mode in the compatible connection mode list. Available on Apple Silicon Macs for natively connected displays. Please note that changing the connection mode is a risky operation! Specific values must be provided. Device (display) specific feature.
+- `resolution` - Display/screen resolution (in WIDTHxHEIGHT) format. Specific values must be provided. Device (display) specific feature.
+- `refreshRate` - Refresh rate (in Hz). Can be used in conjunction with traditional display mode selectors, like `resolution`, `hiDPI` as well. Specific values must be provided. Device (display) specific feature.
+- `colorDepth` - Color depth (typically: 8 or 10 bits per channel). Setting this value works on Intel Macs only. Specific values must be provided. Device (display) specific feature.
+- `placement` - Display placement in the global coordinate space of the display layout (in `XxY` format). Uses logical pixels. Specific values must be provided. Device (display) specific feature.
+- `moveTo` - Move display next to an other display in the display layout using direction specifiers. A target display (relative to which the display is moved) must be specified. Specific values must be provided. No value must be specified. Device (display) specific feature. Pro feature. Available values: `topLeftCorner`, `topLeft`, `top`, `topRight`, `topRightCorner`, `leftTop`, `left`, `leftBottom`, `rightTop`, `right`, `rightBottom`, `bottomLeftCorner`, `bottomLeft`, `bottom`, `bottomRight`, `bottomRightCorner`.
+- `framebufferBoolProperty` - Set a boolean framebuffer property. Use `specifier` to specify the framebuffer property name. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `framebufferNumericProperty` - Set a numeric framebuffer property. Use `specifier` to specify the framebuffer property name. Specific values must be provided. Device (display) specific feature.
+- `mute` - Display mute. Works on devices with volume control (DDC volume and optionally DDC mute). Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `hardwareBacklight` - Turns Hardware backlight on or off. Works on displays with backlight technology and proper DDC support. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `hiDPI` - Turns HiDPI rendering on or off. Works with resolutions that have both LoDPI and HiDPI alternatives. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `hdr` - Turns HDR mode on or off. Requires third party HDR capable display. Pro feature. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `brightnessUpscaling` - Turns software brightness upscaling on or off. Requires XDR or HDR display. Pro feature. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `nativeBrightnessUpscaling` - Turns native brightness upscaling on or off. Requires a built-in XDR display. Pro feature. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `connected` - Connects or disconnects a display or virtual screen. For displays, connection management capable connection is required. Pro feature. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `autoBrightness` - Turns auto brightness on or off. Requires an Apple display. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `notch` - Turns the Apple Liquid Retina Display "ears" and "notch" area on or off. Requires a compatible display and works with certain resolutions only that have notched and notchless alternatives. Pro feature. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `main` - Sets a display as a main display (unsetting is only possible by designating an other display as main) or get its main status. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `gpuDithering` - GPU dithering. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `inverted` - Invert colors (using color table adjustments). Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `suspendImageAdjustments` - Suspend various software image adjustments (except for brightness) for the display. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `mirror` - Mirror display. One or more target display must be specified. Bool value (`on` or `off`) is accepted. Device (display) specific feature.
+- `stream` - Enable/disable streaming for a display or alter stream settings by providing additional parameters. Use `specifier` to specify the appropriate stream (or omit for the default stream `1`). Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `pip` - Enable/disable picture in picture for a specified display or alter PIP settings by providing additional parameters. Use `specifier` to specify the appropriate PIP window (or omit for the default window `1`). Must also be specified (without value) if a stream specific setting is changed. Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `videoFilterWindow` - Enable/disable video filter window or alter its settings by providing additional parameters. Use `specifier` to specify the appropriate video filter window (or omit for the default window `1`). Must also be specified (without value) if a stream specific setting is changed. Bool value (`on` or `off`) is accepted. Pro feature.
+- `protectResolution` - Enable/disable resolution protection. Setting it to `on` protects current setting. Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `protectRefreshRate` - Enable/disable refresh rate protection. Setting it to `on` protects current setting. Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `protectHDR` - Enable/disable HDR state protection. Setting it to `on` protects current setting. Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `protectRotation` - Enable/disable rotation protection. Setting it to `on` protects current setting. Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `protectAsMain` - Enable/disable main status protection. Setting it to `on` works only if the display is main display. Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `protectSDRProfile` - Enable/disable SDR profile protection. Setting it to `on` protects current setting and works only if the display is in SDR mode. Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `protectHDRProfile` - Enable/disable HDR profile protection. Setting it to `on` protects current setting and works only if the display is in HDR mode. Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `protectSDRColorMode` - Enable/disable SDR color mode protection. Setting it to `on` protects current setting and works only if the display is in SDR mode. Requires Apple Silicon. Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `protectHDRColorMode` - Enable/disable HDR color mode protection. Setting it to `on` protects current setting and works only if the display is in HDR mode. Requires Apple Silicon. Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `protectAll` - Enable/disable all protection. Setting it to `on` turns on all protections that can be activated for a display. Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `hardwarePowerOff` - Turns a display off. Requires a DDC compatible external display that supports this feature. No value must be specified. Device (display) specific feature.
+- `hardwareFactoryReset` - Reset factory settings for a display. Requires a DDC compatible external display that supports this feature. No value must be specified. Device (display) specific feature.
+- `resetColorAdjustments` - Reset software color adjustments. Requires a display with color table manipulation support. No value must be specified. Device (display) specific feature.
+- `reinitialize` - Reinitialize display connection and reload custom configuration. Works with natively connected displays with EDID. No value must be specified. Device (display) specific feature.
+- `resetVMM7100` - Reset VMM7100 HDMI adapter if present. No value must be specified. Not a device (display) specific feature.
+- `colorProfileReset` - Reset color profile to factory setting for a display. No value must be specified. Device (display) specific feature.
+- `xdrPresetReset` - Reset Apple Display Preset to factory setting for a display. No value must be specified. Device (display) specific feature.
+- `standardFramebuffer` - Set framebuffer color mapping to normal. No value must be specified. Device (display) specific feature.
+- `invertedFramebuffer` - Set framebuffer color mapping to inverted. No value must be specified. Device (display) specific feature.
+- `grayscaleFramebuffer` - Set framebuffer color mapping to grayscale. No value must be specified. Device (display) specific feature.
+- `invertedGrayscaleFramebuffer` - Set framebuffer color mapping to inverted grayscale. No value must be specified. Device (display) specific feature.
+- `customEDID` - Custom EDID binary in Base64 format. Use `set` and `get` to set and retrieve the currently configured data. Works on Apple Silicon Macs only. Specific values must be provided. Device (display) specific feature.
+- `applyCustomEDID` - Apply custom EDID. use `customEDID` to set the EDID data to be applied. Works on Apple Silicon Macs only. No value must be specified. Device (display) specific feature. Pro feature.
+- `applyFactoryEDID` - Restore the factory EDID. Works on Apple Silicon Macs only. No value must be specified. Device (display) specific feature. Pro feature.
+- `autoApplyCustomEDID` - Configures custom EDID auto-apply. Bool value (`on` or `off`) is accepted. Device (display) specific feature. Pro feature.
+- `i2cEDID` - Reads the display's EDID using I2C. Device (display) specific feature.
+- `osEDID` - Shows the display EDID recorded by the OS. Might be malformed and have some identifiers removed on newer macOS versions. Device (display) specific feature.
+- `identifier` - Returns the specified identifier's value. Works with `tagID`, `UUID`, `displayID`, `originalName`, `name`, `productName`, `vendor`, `model`, `serial`, `alphanumericSerial`, `yearOfManufacture`, `weekOfManufacture`, `registryLocation`.  Use with the `get` operation. Information retrieval feature. Device (display) specific feature.
+- `identifiers` - Lists display and virtual screen identifiers in a JSON structure.  Use with the `get` operation. Information retrieval feature. Device (display) specific feature.
+- `xdrPresetList` - List Apple Display Presets suitable for a display. Use with the `get` operation.  Use with the `get` operation. Information retrieval feature. Device (display) specific feature.
+- `displayModeList` - Lists available display modes. Use with the `get` operation. Information retrieval feature. Device (display) specific feature.
+- `installedColorProfileURLs` - List installed color profiles.  Use with the `get` operation. Information retrieval feature. Not a device (display) specific feature.
+- `ddcCapabilities` - Explores DDC capabilities by parsing the DDC capabilities string and attempting to read supported commands. Use with `get`. Provides a brief report. Device (display) specific feature.
+- `ddcCapabilitiesString` - Gets the DDC capabilities string from the display. Use with `get`. Provides the unparsed string. Device (display) specific feature.
+- `preferredConnectionMode` - Shows preferred connection mode. Available on Apple Silicon Macs for natively connected displays. Use with the `get` operation. Information retrieval feature. Device (display) specific feature.
+- `connectionModeListAll` - Lists all available connection modes. Available on Apple Silicon Macs for natively connected displays. Use with the `get` operation. Information retrieval feature. Device (display) specific feature.
+- `connectionModeList` - Lists available connection modes matching current mode (in terms of resolution, refresh rate, HDR state). Available on Apple Silicon Macs for natively connected displays. Use with the `get` operation. Information retrieval feature. Device (display) specific feature.
+- `refreshRateList` - Lists available refresh rate and VRR state options matching current display mode (in terms of resolution, HDR state), including unexposed (NTSC) timings on Apple Silicon. Use with the `get` operation. Information retrieval feature. Device (display) specific feature.
+- `nightShiftValue` - Specifies Night Shift value. Pro feature. A contiguous range of values are accepted. Not a device (display) specific feature.
+- `nightShift` - Turns Night Shift on or off. Pro feature. Bool value (`on` or `off`) is accepted. Not a device (display) specific feature.
+- `trueTone` - Turns True Tone on or off. Pro feature. Bool value (`on` or `off`) is accepted. Not a device (display) specific feature.
+- `darkMode` - Turns Dark Mode on or off. Pro feature. Bool value (`on` or `off`) is accepted. Not a device (display) specific feature.
+- `disableNightShiftInHDR` - Toggles the feature on or off that toggles Night Shift when an external display is put to HDR or SDR mode using the app. Pro feature. Bool value (`on` or `off`) is accepted. Not a device (display) specific feature.
+- `proAvailable` - Returns whether Pro features are available or not. Use with `get` operation. Bool value (`on` or `off`) is accepted. Not a device (display) specific feature.
+- `osdShowBasic` - Turns showing basic native OSD (brightness, volume) on/off (useful for third party OSD app integration). Bool value (`on` or `off`) is accepted. Not a device (display) specific feature.
+- `osdShowCustom` - Turns showing custom OSD on/off (useful for third party OSD app integration). Bool value (`on` or `off`) is accepted. Not a device (display) specific feature.
+- `osdIntegrationNotification` - Turns third party OSD integration app notifications on/off. Bool value (`on` or `off`) is accepted. Not a device (display) specific feature.
+- `reconfigure` - Redetect/reconfigure displays. No value must be specified. Not a device (display) specific feature.
+- `disconnectAllButMain` - Disconnects all displays except the current main display. Pro feature. No value must be specified. Not a device (display) specific feature.
+- `connectAllDisplays` - Connets all displays (even unlisted ones). Pro feature. No value must be specified. Not a device (display) specific feature.
+- `restartApp` - Restart BetterDisplay. No value must be specified. Not a device (display) specific feature.
+- `sidecarList` - List Sidecar display names and UUIDs. Information retrieval feature. Not a device (display) specific feature.
+- `sidecarConnected` - Connect a Sidecar display specify Sidecar display's name or UUID using `specifier` Bool value (`on` or `off`) is accepted. Not a device (display) specific feature.
+
+### Parameters specific for various features
+
+- `addConfiguration` - Add an additional configuration. Configuration ID needs to be specified, otherwise the first available slot will be used as ID. Used by the following: `stream`, `pip`, `videoFilterWindow`. No value must be specified. Pro feature.
+- `removeConfiguration` - Remove a configuration. Configuration ID needs to be specified. Used by the following: `stream`, `pip`, `videoFilterWindow`. No value must be specified. Pro feature.
+- `freeAspect` - Free aspect ratio. Used by the following: `stream`, `pip`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `integerScaling` - Integer scaling. Used by the following: `stream`, `pip`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `directPixelMapping` - Direct (1:1) pixel mapping. Used by the following: `stream`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `rotateBy` - Rotate image. Valid values are `0`, `90`, `180`, `270`. Used by the following: `stream`, `pip`. Specific values must be provided. Pro feature.
+- `flipHorizontal` - Flip horizontally. Used by the following: `stream`, `pip`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `flipVertical` - Flip vertically. Used by the following: `stream`, `pip`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `horizontalLocation` - Horizontal alignment. Used by the following: `stream`. Specific values must be provided. Pro feature. Available values: `left`, `center`, `right`.
+- `verticalLocation` - Vertical alignment. Used by the following: `stream`. Specific values must be provided. Pro feature. Available values: `top`, `center`, `bottom`.
+- `cursorShown` - Show mouse cursor. Used by the following: `stream`, `pip`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `streamUnderscan` - Stream underscan. Used by the following: `stream`. A contiguous range of values are accepted. Pro feature.
+- `zoom` - Zoom level. Used by the following: `stream`. A contiguous range of values are accepted. Pro feature.
+- `videoFilters` - Video filters. Used by the following: `stream`, `pip`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `renderHDR` - HDR rendering for video filters. Used by the following: `stream`, `pip`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `alpha` - Stream and PIP window alpha (transparency, percentage value expected). Used by the following: `stream`, `pip`, `videoFilterWindow`. A contiguous range of values are accepted. Pro feature.
+- `partial` - Crop image. Used by the following: `stream`, `pip`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `partialOriginX` - Crop window origin X (percentage value, relative to the display size). Used by the following: `stream`, `pip`. A contiguous range of values are accepted. Pro feature.
+- `partialOriginY` - Crop window origin Y (percentage value, relative to the display size). Used by the following: `stream`, `pip`. A contiguous range of values are accepted. Pro feature.
+- `partialWidth` - Crop window width (percentage value, relative to the display size). Used by the following: `stream`, `pip`. A contiguous range of values are accepted. Pro feature.
+- `partialHeight` - Crop window height (percentage value, relative to the display size). Used by the following: `stream`, `pip`. A contiguous range of values are accepted. Pro feature.
+- `resume` - Resume stream on connect. Used by the following: `stream`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `priority` - Window priority. Used by the following: `pip`, `videoFilterWindow`. Specific values must be provided. Pro feature. Available values: `normal`, `topmost`, `absolute`.
+- `unmovable` - Unmovable PIP window. Requires the `priority` to be set to `absolute`. Used by the following: `pip`, `videoFilterWindow`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `clickthrough` - Click-through PIP window. Requires `priority` to be set to `absolute`, `unmovable` to be `on` and `alpha` set to a transparent level. Used by the following: `pip`, `videoFilterWindow`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `showTitlebar` - Show window titlebar. Used by the following: `pip`, `videoFilterWindow`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `showShadow` - Show window shadow (works only when free aspect ratio is enabled). Used by the following: `pip`, `videoFilterWindow`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `excludePipWindow` - Exclude PIP window. Used by the following: `pip`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `magnification` - Magnification. Used by the following: `pip`. A contiguous range of values are accepted. Pro feature.
+- `autoStart` - Start automatically. Used by the following: `pip`, `videoFilterWindow`. Bool value (`on` or `off`) is accepted. Pro feature.
+- `originX` - Window origin X (percentage value, relative to the target display size). Used by the following: `pip`, `videoFilterWindow`. A contiguous range of values are accepted. Pro feature.
+- `originY` - Window origin Y (percentage value, relative to the target display size, zero is the bottom of the screen). Used by the following: `pip`, `videoFilterWindow`. A contiguous range of values are accepted. Pro feature.
+- `width` - Window width (percentage value, relative to the target display size). Used by the following: `pip`, `videoFilterWindow`. A contiguous range of values are accepted. Pro feature.
+- `height` - Window height (percentage value, relative to the target display size). Used by the following: `pip`, `videoFilterWindow`. A contiguous range of values are accepted. Pro feature.
+- `vcp` - Specifies the DDC coontrol code (VCP - Virtual Control Panel) that is being accessed when sending a DDC command. Use VCP name, decimal or a hexadecimal number (supplied with `0x` prefix). Used by the following: `ddc`, `ddcAlt`. Specific values must be provided. Available values: `unknown`, `horizontalFrequency`, `verticalFrequency`, `sourceColorCoding`, `displayUsageTime`, `displayControllerId`, `displayFirmwareLevel`, `osdLanguage`, `powerMode`, `imageMode`, `vcpVersion`, `horizontalPosition`, `horizontalSize`, `horizontalPincushion`, `horizontalPincushionBalance`, `horizontalConvergenceRB`, `horizontalConvergenceMG`, `horizontalLinearity`, `horizontalLinearityBalance`, `verticalPosition`, `verticalSize`, `verticalPincushion`, `verticalPincushionBalance`, `verticalConvergenceRB`, `verticalConvergenceMG`, `verticalLinearity`, `verticalLinearityBalance`, `horizontalParallelogram`, `verticalParallelogram`, `horizontalKeystone`, `verticalKeystone`, `rotation`, `topCornerFlare`, `topCornerHook`, `bottomCornerFlare`, `bottomCornerHook`, `horizontalMirror`, `verticalMirror`, `displayScaling`, `windowPositionTopLeftX`, `windowPositionTopLeftY`, `windowPositionBottomRightX`, `windowPositionBottomRightY`, `scanMode`, `degauss`, `newControlValue`, `softControls`, `activeControl`, `performancePreservation`, `inputSelect`, `inputSelectAlt`, `ambientLightSensor`, `remoteProcedureCall`, `displayIdentificationOnDataOperation`, `tvChannelUpDown`, `flatPanelSubPixelLayout`, `displayTechnologyType`, `displayDescriptorLength`, `transmitDisplayDescriptor`, `enableDisplayOfDisplayDescriptor`, `applicationEnableKey`, `displayEnableKey`, `statusIndicator`, `auxiliaryDisplaySize`, `auxiliaryDisplayData`, `outputSelect`, `assetTag`, `auxiliaryPowerOutput`, `scratchPad`, `audioSpeakerVolume`, `speakerSelect`, `audioMicrophoneVolume`, `audioJackConnectionStatus`, `audioMuteScreenBlank`, `audioTreble`, `audioBass`, `audioBalanceLR`, `audioProcessorMode`, `osd`, `sixAxisHueControlBlue`, `sixAxisHueControlCyan`, `sixAxisHueControlGreen`, `sixAxisHueControlMagenta`, `sixAxisHueControlRed`, `sixAxisHueControlYellow`, `sixAxisSaturationControlBlue`, `sixAxisSaturationControlCyan`, `sixAxisSaturationControlGreen`, `sixAxisSaturationControlMagenta`, `sixAxisSaturationControlRed`, `sixAxisSaturationControlYellow`, `adjustZoom`, `autoColorSetup`, `autoSetup`, `autoSetupOnOff`, `backlightControlLegacy`, `backlightLevelWhite`, `backlightLevelRed`, `backlightLevelGreen`, `backlightLevelBlue`, `blockLutOperation`, `clock`, `clockPhase`, `colorSaturation`, `colorTemperatureIncrement`, `colorTemperatureRequest`, `contrast`, `displayApplication`, `fleshToneEnhancement`, `focus`, `gamma`, `grayScaleExpansion`, `horizontalMoire`, `hue`, `luminance`, `lutSize`, `screenOrientation`, `selectColorPreset`, `sharpness`, `singlePointLutOperation`, `stereoVideoMode`, `tvBlackLevel`, `tvContrast`, `tvSharpness`, `userColorVisionCompensation`, `velocityScanModulation`, `verticalMoire`, `videoBlackLevelBlue`, `videoBlackLevelGreen`, `videoBlackLevelRed`, `videoGainBlue`, `videoGainGreen`, `videoGainRed`, `windowBackground`, `windowControlOnOff`, `windowSelect`, `windowSize`, `windowTransparency`, `restoreFactoryDefaults`, `restoreFactoryLuminanceContrastDefaults`, `restoreFactoryGeometryDefaults`, `restoreFactoryColorDefaults`, `restoreFactoryTvDefaults`, `settings`, `blackStabilizer`, `colorPresetC`, `powerControl`, `topLeftScreenPurity`, `topRightScreenPurity`, `bottomLeftScreenPurity`, `bottomRightScreenPurity`.
+- `specifier` - Specifies additional information for a feature. Used by the following: `framebufferBoolProperty`, `framebufferNumericProperty`, `sidecarConnected`. Specific values must be provided.
+- `targetTagID` - Identify a target device via the display's tagID which is a BetterDisplay provided unique numeric ID specific to this app installation. Used by the following: `moveTo`, `mirror`, `stream`, `pip`, `videoFilterWindow`.
+- `targetUUID` - Identify a target device via the display's UUID assigned by this macOS installation. Used by the following: `moveTo`, `mirror`, `stream`, `pip`, `videoFilterWindow`.
+- `targetDisplayID` - Identify a target device using the displayID issued by macOS. This ID might change from time-to-time. Used by the following: `moveTo`, `mirror`, `stream`, `pip`, `videoFilterWindow`.
+- `targetName` (or `targetN`) - Identify a target device using its displayed name in BetterDisplay. Used by the following: `moveTo`, `mirror`, `stream`, `pip`, `videoFilterWindow`.
+- `targetNameLike` - Identify a target  using a part of its displayed name in BetterDisplay (case insensitive). Used by the following: `moveTo`, `mirror`, `stream`, `pip`, `videoFilterWindow`.
+- `targetOriginalName` - Identify a target device using its name in BetterDisplay. Used by the following: `moveTo`, `mirror`, `stream`, `pip`, `videoFilterWindow`.
+- `targetOriginalNameLike` - Identify a target device using a part of its name in BetterDisplay (case insensitive). Used by the following: `moveTo`, `mirror`, `stream`, `pip`, `videoFilterWindow`.
